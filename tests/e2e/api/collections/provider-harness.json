@@ -323479,6 +323479,241 @@
           }
         }
       ]
+    },
+    {
+      "name": "351. Thinking block_binding reaches the provider with its beta (thinking block binding)",
+      "description": "thinking.block_binding.prefix_mismatch_behavior (\"error\" | \"drop_block\", beta thinking-binding-controls-2026-08-01) tells the API to drop, rather than 400 on, a thinking block whose signature is bound to a different conversation (\"The block is bound to a different conversation\"). AnthropicThinking had no field for it, so every typed route dropped it silently: native /anthropic/v1/messages (adaptive thinking is rebuilt from the neutral reasoning shape, never restored) and /v1/chat/completions with an Anthropic thinking object (promoteThinkingFromExtraParams rebuilt it from type+display). The raw Claude Code passthrough kept it, but also forwarded it to hosts that do not take the beta. The fix models the field, records it in the native request witness and reattaches it at egress on a thinking-on mode, derives the beta from the body (SDK clients cannot set anthropic-beta on the neutral routes), and strips it on hosts without ProviderFeatures.ThinkingBinding (Vertex, Bedrock, Mantle, Azure) on both the typed and raw paths. Cases: native route forwards it (raw_request) and is accepted, which also proves the derived beta (the field 400s without it); the stream variant completes; chat completions forwards it; Claude Code passthrough to Vertex no longer leaks it. /v1/responses has no thinking object to carry it (no neutral construct) and is not covered.",
+      "item": [
+        {
+          "name": "anthropic/claude-sonnet-5-5 /anthropic/v1/messages thinking.block_binding reaches the provider with its derived beta - thinking block binding",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var txt = pm.response.text() || '';",
+                  "var body = {};",
+                  "try { body = pm.response.json() || {}; } catch (e) { body = {}; }",
+                  "var rr = (body.extra_fields || {}).raw_request;",
+                  "if (typeof rr === 'string') { try { rr = JSON.parse(rr); } catch (e) { rr = null; } }",
+                  "pm.test('anthropic/claude-sonnet-5-5 /anthropic/v1/messages thinking.block_binding reaches the provider with its derived beta - thinking block binding: no block_binding rejection', function () {",
+                  "  pm.expect(txt, 'block_binding reached a host without its beta, or without the beta header: ' + txt.slice(0, 400)).to.not.match(/block_binding|thinking-binding-controls|Extra inputs are not permitted/);",
+                  "  pm.expect(pm.response.code, 'want 200: ' + txt.slice(0, 400)).to.eql(200);",
+                  "});",
+                  "pm.test('anthropic/claude-sonnet-5-5 /anthropic/v1/messages thinking.block_binding reaches the provider with its derived beta - thinking block binding: block_binding forwarded verbatim', function () {",
+                  "  pm.expect(rr, 'raw_request missing - x-bf-send-back-raw-request not honored: ' + txt.slice(0, 400)).to.be.an('object');",
+                  "  pm.expect(rr.thinking, 'thinking dropped: ' + JSON.stringify(rr)).to.be.an('object');",
+                  "  pm.expect(['adaptive', 'enabled'], 'block_binding needs a thinking-on mode').to.include(rr.thinking.type);",
+                  "  pm.expect(rr.thinking.block_binding, 'thinking.block_binding dropped on the way to the provider: ' + JSON.stringify(rr.thinking)).to.eql({ prefix_mismatch_behavior: 'drop_block' });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{anthropicKey}}"
+              },
+              {
+                "key": "anthropic-version",
+                "value": "2023-06-01"
+              },
+              {
+                "key": "x-bf-send-back-raw-request",
+                "value": "true"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"anthropic/claude-sonnet-5-5\",\n  \"max_tokens\": 256,\n  \"thinking\": {\n    \"type\": \"adaptive\",\n    \"block_binding\": {\n      \"prefix_mismatch_behavior\": \"drop_block\"\n    }\n  },\n  \"output_config\": {\n    \"effort\": \"low\"\n  },\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with the single word: ok\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/anthropic/v1/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "anthropic",
+                "v1",
+                "messages"
+              ]
+            }
+          }
+        },
+        {
+          "name": "anthropic/claude-sonnet-5-5 /anthropic/v1/messages stream thinking.block_binding completes - thinking block binding",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var txt = pm.response.text() || '';",
+                  "pm.test('anthropic/claude-sonnet-5-5 /anthropic/v1/messages stream thinking.block_binding completes - thinking block binding: no block_binding rejection', function () {",
+                  "  pm.expect(txt, 'block_binding reached a host without its beta, or without the beta header: ' + txt.slice(0, 400)).to.not.match(/block_binding|thinking-binding-controls|Extra inputs are not permitted/);",
+                  "  pm.expect(pm.response.code, 'want 200: ' + txt.slice(0, 400)).to.eql(200);",
+                  "});",
+                  "pm.test('anthropic/claude-sonnet-5-5 /anthropic/v1/messages stream thinking.block_binding completes - thinking block binding: stream completes', function () {",
+                  "  pm.expect(txt, 'no message_stop: ' + txt.slice(0, 400)).to.include('message_stop');",
+                  "  pm.expect(txt, 'stream carried an error event: ' + txt.slice(0, 400)).to.not.include('event: error');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{anthropicKey}}"
+              },
+              {
+                "key": "anthropic-version",
+                "value": "2023-06-01"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"anthropic/claude-sonnet-5-5\",\n  \"max_tokens\": 256,\n  \"stream\": true,\n  \"thinking\": {\n    \"type\": \"adaptive\",\n    \"block_binding\": {\n      \"prefix_mismatch_behavior\": \"drop_block\"\n    }\n  },\n  \"output_config\": {\n    \"effort\": \"low\"\n  },\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with the single word: ok\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/anthropic/v1/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "anthropic",
+                "v1",
+                "messages"
+              ]
+            }
+          }
+        },
+        {
+          "name": "anthropic/claude-sonnet-5-5 /v1/chat/completions top-level thinking.block_binding reaches the provider - thinking block binding",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var txt = pm.response.text() || '';",
+                  "var body = {};",
+                  "try { body = pm.response.json() || {}; } catch (e) { body = {}; }",
+                  "var rr = (body.extra_fields || {}).raw_request;",
+                  "if (typeof rr === 'string') { try { rr = JSON.parse(rr); } catch (e) { rr = null; } }",
+                  "pm.test('anthropic/claude-sonnet-5-5 /v1/chat/completions top-level thinking.block_binding reaches the provider - thinking block binding: no block_binding rejection', function () {",
+                  "  pm.expect(txt, 'block_binding reached a host without its beta, or without the beta header: ' + txt.slice(0, 400)).to.not.match(/block_binding|thinking-binding-controls|Extra inputs are not permitted/);",
+                  "  pm.expect(pm.response.code, 'want 200: ' + txt.slice(0, 400)).to.eql(200);",
+                  "});",
+                  "pm.test('anthropic/claude-sonnet-5-5 /v1/chat/completions top-level thinking.block_binding reaches the provider - thinking block binding: block_binding forwarded verbatim', function () {",
+                  "  pm.expect(rr, 'raw_request missing - x-bf-send-back-raw-request not honored: ' + txt.slice(0, 400)).to.be.an('object');",
+                  "  pm.expect(rr.thinking, 'thinking dropped: ' + JSON.stringify(rr)).to.be.an('object');",
+                  "  pm.expect(['adaptive', 'enabled'], 'block_binding needs a thinking-on mode').to.include(rr.thinking.type);",
+                  "  pm.expect(rr.thinking.block_binding, 'thinking.block_binding dropped on the way to the provider: ' + JSON.stringify(rr.thinking)).to.eql({ prefix_mismatch_behavior: 'drop_block' });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-bf-send-back-raw-request",
+                "value": "true"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"anthropic/claude-sonnet-5-5\",\n  \"max_tokens\": 256,\n  \"thinking\": {\n    \"type\": \"adaptive\",\n    \"block_binding\": {\n      \"prefix_mismatch_behavior\": \"drop_block\"\n    }\n  },\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with the single word: ok\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "vertex/claude-sonnet-5-5 /anthropic/v1/messages Claude Code passthrough strips thinking.block_binding - thinking block binding",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var txt = pm.response.text() || '';",
+                  "// Claude Code (claude-cli UA) takes the raw-body passthrough. Vertex does not take thinking-binding-controls, so the field must be stripped there instead of forwarded into an 'Extra inputs are not permitted' 400.",
+                  "pm.test('vertex/claude-sonnet-5-5 /anthropic/v1/messages Claude Code passthrough strips thinking.block_binding - thinking block binding: no block_binding rejection', function () {",
+                  "  pm.expect(txt, 'block_binding reached a host without its beta, or without the beta header: ' + txt.slice(0, 400)).to.not.match(/block_binding|thinking-binding-controls|Extra inputs are not permitted/);",
+                  "  pm.expect(pm.response.code, 'want 200: ' + txt.slice(0, 400)).to.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{anthropicKey}}"
+              },
+              {
+                "key": "anthropic-version",
+                "value": "2023-06-01"
+              },
+              {
+                "key": "User-Agent",
+                "value": "claude-cli/2.1.285 (external, cli)"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"vertex/claude-sonnet-5-5\",\n  \"max_tokens\": 256,\n  \"thinking\": {\n    \"type\": \"adaptive\",\n    \"block_binding\": {\n      \"prefix_mismatch_behavior\": \"drop_block\"\n    }\n  },\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with the single word: ok\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/anthropic/v1/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "anthropic",
+                "v1",
+                "messages"
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }
